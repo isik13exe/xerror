@@ -13,7 +13,7 @@ func Panel(border bool) lipgloss.Style {
 }
 
 var Selected = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("205")).
+	Foreground(lipgloss.Color("#fffb00")).
 	Bold(true)
 
 var Title = lipgloss.NewStyle().
