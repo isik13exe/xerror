@@ -4,12 +4,9 @@ import (
 	"xerror/pages"
 	"xerror/styles"
 //	"xerror/tools"
-    _ "embed"
+	"xerror/assets"
 	tea "charm.land/bubbletea/v2"
 )
-
-//go:embed logo.ascii
-var logo string
 
 type OpenExplorerMsg struct{}
 
@@ -65,7 +62,7 @@ func (m Model) Update(msg tea.Msg) (pages.Page, tea.Cmd) {
 }
 
 func (m Model) View(width, height int) string {
-	s := logo
+	s := assets.Logo
 	for i, item := range m.items {
 		if i == m.cursor {
 			s += styles.Selected.Render(item.selected) + "\n"

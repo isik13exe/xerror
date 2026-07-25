@@ -3,7 +3,7 @@ package editor
 import (
 	"os"
 	"xerror/tools"
-
+	"xerror/assets"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/ionut-t/goeditor"
@@ -87,7 +87,7 @@ func (m Model) View() string {
 			Width(m.width).
 			Height(m.height).
 			Align(lipgloss.Center, lipgloss.Center)
-		return style.Render(tools.Logo() + "\nSelect a file and press Enter\nto open it here")
+		return style.Render( assets.Logo + "\nSelect a file and press Enter\nto open it here")
 	}
 	return m.ed.View()
 }

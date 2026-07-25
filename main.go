@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: mytool <file-or-dir>")
+		fmt.Fprintln(os.Stderr, "usage: xerror <dir>")
 		os.Exit(1)
 	}
 

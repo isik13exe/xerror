@@ -1,18 +1,9 @@
 package tools
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 )
-
-func Logo() string {
-	data, err := os.ReadFile("./tools/logo.ascii")
-	if err != nil {
-		panic(err)
-	}
-	return string(data)
-}
 
 func Lang(path string) string {
 	switch strings.ToLower(filepath.Ext(path)) {
