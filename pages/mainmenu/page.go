@@ -3,10 +3,13 @@ package mainmenu
 import (
 	"xerror/pages"
 	"xerror/styles"
-	"xerror/tools"
-
+//	"xerror/tools"
+    _ "embed"
 	tea "charm.land/bubbletea/v2"
 )
+
+//go:embed logo.ascii
+var logo string
 
 type OpenExplorerMsg struct{}
 
@@ -21,7 +24,7 @@ type item struct {
 	selected string
 }
 
-var quit = item{tag: "quit", normal: "┌────────────┐\n│    Quit    │\n└────────────┘", selected: "┌────────────┐\n│    Quit    │<==\n└────────────┘"}
+var quit = item{tag: "quit", normal: "┌────────────────┐\n│      Quit      │\n└────────────────┘", selected: "┌────────────────┐\n│      Quit      │<==\n└────────────────┘"}
 var explorer = item{tag: "explore", normal: "┌────────────────┐\n│    Explorer    │\n└────────────────┘", selected: "┌────────────────┐\n│    Explorer    │<==\n└────────────────┘"}
 
 func New() pages.Page {
@@ -62,7 +65,7 @@ func (m Model) Update(msg tea.Msg) (pages.Page, tea.Cmd) {
 }
 
 func (m Model) View(width, height int) string {
-	s := tools.Logo()
+	s := logo
 	for i, item := range m.items {
 		if i == m.cursor {
 			s += styles.Selected.Render(item.selected) + "\n"
