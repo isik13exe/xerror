@@ -1,11 +1,17 @@
 package explorer
 
 import (
-	"xerror/pages"
-	"xerror/styles"
+	"fmt"
+	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"xerror/pages"
+	"xerror/pages/explorer/editor"
+	"xerror/pages/explorer/exp"
+	"xerror/styles"
+	"os"
+	"github.com/ionut-t/goeditor"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type BackMsg struct{}
@@ -18,32 +24,23 @@ const (
 )
 
 type Model struct {
-	folders []string
-	files   []string
-
-	leftCursor  int
-	rightCursor int
-
-	focus Focus
+	root    *exp.Node
+	current *exp.Node
+	cursor  int
+	focus   Focus
+	ed      editor.Model
 }
 
-func New() pages.Page {
+func New(dirpath string) pages.Page {
+	root, err := exp.BuildTree(dirpath)
+	if err != nil {
+		panic(err)
+	}
 	return Model{
-		folders: []string{
-			"src",
-			"assets",
-			"include",
-			"tests",
-		},
-
-		files: []string{
-			"main.go",
-			"lexer.go",
-			"parser.go",
-			"README.md",
-		},
-
-		focus: Left,
+		root:    root,
+		current: root,
+		focus:   Left,
+		ed:      editor.New(40, 20),
 	}
 }
 
@@ -52,94 +49,123 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (pages.Page, tea.Cmd) {
+	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-
-	case tea.KeyMsg:
-
-		switch msg.String() {
-
-		case "up":
-
-			if m.focus == Left {
-				if m.leftCursor > 0 {
-					m.leftCursor--
+	// When editor has focus, forward keys to it
+	if m.focus == Right {
+		switch msg := msg.(type) {
+			case goeditor.SaveMsg:
+				path := m.ed.FilePath()
+				if msg.Path != nil {
+					path = *msg.Path
 				}
-			} else {
-				if m.rightCursor > 0 {
-					m.rightCursor--
+				if path != "" {
+					_ = os.WriteFile(path, []byte(msg.Content), 0o644)
 				}
-			}
-
-		case "down":
-
-			if m.focus == Left {
-				if m.leftCursor < len(m.folders)-1 {
-					m.leftCursor++
-				}
-			} else {
-				if m.rightCursor < len(m.files)-1 {
-					m.rightCursor++
-				}
-			}
-
-		case "enter":
-
-			if m.focus == Left {
-				m.focus = Right
-			}
-
-		case "esc":
-
-			if m.focus == Right {
+				return m, nil
+		
+			case goeditor.QuitMsg:
+				m.ed.Clear()
 				m.focus = Left
 				return m, nil
 			}
+		var cmd tea.Cmd
+		m.ed, cmd = m.ed.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if key, ok := msg.(tea.KeyPressMsg); ok && key.String() == "ctrl+w" {
+			m.ed.Blur()
+			m.focus = Left
+			return m, tea.Batch(cmds...)
+		}
+		return m, tea.Batch(cmds...)
+	}
 
-			return m, func() tea.Msg {
-				return BackMsg{}
+	// Left panel (tree)
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		entries := m.current.Entries()
+
+		switch msg.String() {
+			
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(entries)-1 {
+				m.cursor++
+			}
+		case "enter":
+			if len(entries) == 0 {
+				return m, nil
+			}
+			selected := entries[m.cursor]
+			if selected.IsDir {
+				m.current = selected
+				m.cursor = 0
+			} else {
+				if err := m.ed.OpenFile(selected.Path); err != nil {
+					return m, nil
+				}
+				m.focus = Right
+				return m, func() tea.Msg { return pages.RedrawMsg{} }
+			}
+		case "esc", "backspace":
+			if m.current.Parent != nil {
+				m.current = m.current.Parent
+				m.cursor = 0
+				return m, nil
+			}
+			return m, func() tea.Msg { return BackMsg{} }
+		case "tab":
+			if m.ed.FilePath() != "" {
+				m.ed.Focus()
+				m.focus = Right
 			}
 		}
 	}
-
-	return m, nil
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View(width, height int) string {
+	leftWidth := 34
+	rightWidth := width - leftWidth - 4
+	if rightWidth < 20 {
+		rightWidth = 20
+	}
+	panelHeight := height - 4
+	m.ed.SetSize(rightWidth-2, panelHeight-2)
 
-	left := "Folders\n\n"
+	// Left: combined folders + files
+	left := strings.Builder{}
+	left.WriteString(fmt.Sprintf(" %s\n\n", m.current.Name))
 
-	for i, folder := range m.folders {
-
-		cursor := "  "
-
-		if m.focus == Left && i == m.leftCursor {
-			cursor = "▶ "
+	entries := m.current.Entries()
+	if len(entries) == 0 {
+		left.WriteString("  <empty>")
+	} else {
+		for i, entry := range entries {
+			cursor := "  "
+			if m.focus == Left && i == m.cursor {
+				cursor = "▶ "
+			}
+			icon := "📄 "
+			if entry.IsDir {
+				icon = "📁 "
+			}
+			left.WriteString(cursor)
+			left.WriteString(icon)
+			left.WriteString(entry.Name)
+			left.WriteByte('\n')
 		}
-
-		left += cursor + "📁 " + folder + "\n"
 	}
 
-	right := "Files\n\n"
+	rightContent := m.ed.View()
 
-	for i, file := range m.files {
-
-		cursor := "  "
-
-		if m.focus == Right && i == m.rightCursor {
-			cursor = "▶ "
-		}
-
-		right += cursor + "📄 " + file + "\n"
-	}
-
-	leftStyle := styles.Panel.
-		Width(30).
-		Height(height - 4)
-
-	rightStyle := styles.Panel.
-		Width(width - 36).
-		Height(height - 4)
+	leftStyle := styles.Panel(true).Width(leftWidth).Height(panelHeight)
+	rightStyle := styles.Panel(true).Width(rightWidth).Height(panelHeight)
 
 	if m.focus == Left {
 		leftStyle = leftStyle.BorderForeground(lipgloss.Color("39"))
@@ -147,12 +173,31 @@ func (m Model) View(width, height int) string {
 		rightStyle = rightStyle.BorderForeground(lipgloss.Color("39"))
 	}
 
-	leftPanel := leftStyle.Render(left)
-	rightPanel := rightStyle.Render(right)
+	header := styles.Title.Render(currentPath(m.current))
 
-	return lipgloss.JoinHorizontal(
+	body := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		leftPanel,
-		rightPanel,
+		leftStyle.Render(left.String()),
+		rightStyle.Render(rightContent),
 	)
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", body)
+}
+
+func currentPath(n *exp.Node) string {
+	if n == nil {
+		return "/"
+	}
+	var parts []string
+	for n.Parent != nil {
+		parts = append(parts, n.Name)
+		n = n.Parent
+	}
+	if len(parts) == 0 {
+		return "/"
+	}
+	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+		parts[i], parts[j] = parts[j], parts[i]
+	}
+	return "/" + strings.Join(parts, "/")
 }

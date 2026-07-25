@@ -1,10 +1,16 @@
 package styles
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
-var Panel = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
-	Padding(1)
+func Panel(border bool) lipgloss.Style {
+	padding := 0
+	if border {
+		padding = 1
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Padding(padding)
+}
 
 var Selected = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("205")).
