@@ -149,11 +149,11 @@ func (m Model) View(width, height int) string {
 		for i, entry := range entries {
 			cursor := "  "
 			if m.focus == Left && i == m.cursor {
-				cursor = "▶ "
+				cursor = "==> "
 			}
-			icon := "📄 "
+			icon := ""
 			if entry.IsDir {
-				icon = "📁 "
+				icon = "[DIR] "
 			}
 			left.WriteString(cursor)
 			left.WriteString(icon)
